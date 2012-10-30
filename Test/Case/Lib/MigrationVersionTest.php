@@ -73,6 +73,13 @@ class TestCakeMigration extends CakeMigration {
 	public $connection = 'test';
 }
 
+/**
+ * ExpectedException
+ *
+ * @package       migrations
+ * @subpackage    migrations.tests.cases.libs
+ */
+class ExpectedException extends Exception {};
 
 /**
  * TestExceptionCakeMigration
@@ -96,7 +103,7 @@ class TestExceptionCakeMigration extends CakeMigration {
 	 */
 	public function after($direction) {
 		if ($direction != 'down') {
-			throw new Exception('Boom goes the dynamite.');
+			throw new ExpectedException('Boom goes the dynamite.');
 		}
 		return true;
 	}
@@ -423,7 +430,12 @@ class MigrationVersionTest extends CakeTestCase {
 		$this->assertEqual($model->find('count'), 1);
 
 		// run migration002
-		$this->assertNotEqual($Version->run(array('direction' => 'up', 'type' => 'mocks')), true);
+		try {
+			$Version->run(array('direction' => 'up', 'type' => 'mocks'));
+			$this->fail('No exception triggered');
+		} catch (Exception $e) {
+			$this->assertIsA($e, 'ExpectedException');
+		}
 		$this->assertEqual($model->find('count'), 1);
 	}
 }
