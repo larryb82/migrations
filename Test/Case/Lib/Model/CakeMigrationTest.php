@@ -86,7 +86,7 @@ class CakeMigrationTest extends CakeTestCase {
  * @var array
  */
 	public $fixtures = array(
-		'core.user', 'core.post');
+		'core.user', 'core.post', 'core.person');
 
 /**
  * autoFixtures property
@@ -231,7 +231,44 @@ class CakeMigrationTest extends CakeTestCase {
 			$this->assertEqual('Field "views" does not exists in "posts".', $e->getMessage());
 		}
 	}
+/**
+ * testCreateDropFieldOnTableWithIndexes
+ *
+ * SQLite must create a new table, make sure it keeps
+ * its indexes.
+ *
+ */
+public function testCreateDropFieldOnTableWithIndexes() {
+	$this->loadFixtures('Person');
+	$model = new Model(array('table' => 'people', 'ds' => 'test'));
 
+	$migration = new TestCakeMigration(array(
+		'up' => array(
+			'create_field' => array(
+				'people' => array('hairdo' => array('type' => 'string', 'length' => 255, 'null' => false))
+			)
+		),
+		'down' => array(
+			'drop_field' => array('people' => array('hairdo'))
+		)
+	));
+
+	$fields = $this->db->describe($model);
+	$this->assertFalse(isset($fields['hairdo']));
+	$this->assertEqual($fields['mother_id']['key'], 'index');
+
+	$this->assertTrue($migration->run('up'));
+	$fields = $this->db->describe($model);
+	$this->assertTrue(isset($fields['hairdo']));
+	$this->assertEqual($fields['mother_id']['key'], 'index');
+
+
+	$this->assertTrue($migration->run('down'));
+	$fields = $this->db->describe($model);
+	$this->assertFalse(isset($fields['hairdo']));
+	$this->assertEqual($fields['mother_id']['key'], 'index');
+}
+	
 /**
  * testCreateDropIndex method
  *
@@ -550,6 +587,34 @@ class CakeMigrationTest extends CakeTestCase {
 	}
 
 /**
+ * testRenameFieldWithIndex
+ *
+ * @return void
+ */
+public function testRenameFieldWithIndex() {
+	$this->loadFixtures('Person');
+	$model = new Model(array('table' => 'people', 'ds' => 'test'));
+
+	$migration = new TestCakeMigration(array(
+			'up' => array('rename_field' => array('people' => array('mother_id' => 'mom_id'))),
+			'down' => array('rename_field' => array('people' => array('mom_id' => 'mother_id')))
+	));
+
+	$fields = $this->db->describe($model);
+	$this->assertEqual($fields['mother_id']['key'], 'index');
+
+	$this->assertTrue($migration->run('up'));
+	$fields = $this->db->describe($model);
+	$this->assertFalse(array_key_exists('mother_id', $fields));
+	$this->assertEqual($fields['mom_id']['key'], 'index');
+
+	$this->assertTrue($migration->run('down'));
+	$fields = $this->db->describe($model);
+	$this->assertFalse(array_key_exists('mom_id', $fields));
+	$this->assertEqual($fields['mother_id']['key'], 'index');
+}
+	
+/**
  * testCallbacks method
  *
  * @return void
@@ -605,6 +670,10 @@ class CakeMigrationTest extends CakeTestCase {
 	}
 
 	public function testTruncateLongIndexKey() {
+		if (!($this->db instanceof MySql)) {
+			$this->markTestSkipped('Only applies to MySql databases.');
+		}
+		
 		$migration = new TestCakeMigration(array(
 			'up' => array(
 				'create_table' => array(
